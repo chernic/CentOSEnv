@@ -48,7 +48,12 @@ NotRootOut()
 # 直接使用yum安装
 InstallGit()
 {
-	yum -y install git
+	if [ -z `which git` ];then
+		yum -y install git
+	fi
+		git config --global user.email "chernic@gmail.com"
+		git config --global user.name "Chernic.Y.Chen"	
+	echo ""
 }
 
 
@@ -57,6 +62,15 @@ InstallGit()
 ###########################################
 AddNewUserOrPrint()
 {
+	PEOPLE=`cat /etc/group|grep "$REPO_GROUP" `
+	if [ -z $PEOPLE ];
+		then
+			groupadd $REPO_GROUP
+		else
+			echo -ne " // Exited. Group of $REPO_GROUP = "
+			echo $PEOPLE | awk -F : '{print $3}'
+	fi
+
 	PEOPLE=`cat /etc/passwd|grep "$REPO_USER" `
 	if [ -z $PEOPLE ];
 		then
@@ -83,8 +97,8 @@ CreateProject()
 {
 	cd $GIT_ROOT
 	
-	echo " // TEST_MOD=$TEST_MOD"
-	if [ "$TEST_MOD" == '-t' ]; then
+	echo " // OPCTION=$TEST_MOD"
+	if [ "$OPCTION" == '-t' ]; then
 		rm * -rf
 	fi
 
@@ -94,10 +108,11 @@ CreateProject()
 		exit 0
 	else
 		git init --bare newone.git
+		echo " // Project was Created successful."
 	fi
 	
-	echo " // gitrootcreated successful."
 	cd $REPO_NAME
+	mkdir README.md
 	#增加一个分支
 	mkdir -v initial.commit  
 	git init 
@@ -162,8 +177,22 @@ ChangeProjectRight()
 ClientCloneTest()
 {
 	cd $GIT_ROOT
-	git clone $REPO_USER@192.168.1.97:$GIT_ROOT/$REPO_NAME newtest2
+	IPAddress=`ifconfig eth0 | grep 'inet addr' | cut -d ":" -f 2 | cut -d " " -f 1`
+	git clone $REPO_USER@$IPAddress:$GIT_ROOT/$REPO_NAME newtest2
+	# git clone github@192.168.0.98:/home/github/gitroot/newone.git newtest2
+	# github2014
 }
+TellMeHelp()
+{
+	echo "-------------------" 
+	echo "Run This to Start" 
+	echo "-------------------" 
+	echo "clone a project."
+	echo "<git clone $REPO_USER@$IPAddress:$GIT_ROOT/$REPO_NAME ProectName>"
+}
+
+
+
 
 NotRootOut;
 
@@ -183,3 +212,6 @@ ChangeProjectRight;
 
 # Test
 ClientCloneTest;
+
+# HELP
+TellMeHelp
