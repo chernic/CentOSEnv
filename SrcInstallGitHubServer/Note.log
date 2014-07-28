@@ -1,0 +1,126 @@
+﻿今天项目上线，使用php的curl模块通过https访问某个文件时出错：
+     这是我日志里记录的信息：
+2009-05-11 11:10:23 请求音频列表，错误号：60--错误描述：SSL certificate problem, verify that the CA cert is OK. Details:
+error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+
+哎，项目上线急阿，请教同事得知修改如下代码即可，添加黑体字部分就好了。
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->timeout);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+
+虽然有些简单，但是还是写下来吧，以后好作参考。
+
+
+
+###################################################################################
+今天一个同事反映，使用curl发起https请求的时候报错：“SSL certificate problem, verify that the CA cert is OK. Details: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed”
+
+很明显，验证证书的时候出现了问题。
+
+使用curl如果想发起的https请求正常的话有2种做法：
+
+方法一、设定为不验证证书和host。
+
+在执行curl_exec()之前。设置option
+
+$ch = curl_init();
+
+......
+
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, FALSE);
+
+
+
+###################################################################################
+方法二、设定一个正确的证书。
+
+本地ssl判别证书太旧，导致链接报错ssl证书不正确。
+
+我们需要下载新的ssl 本地判别文件
+
+http://curl.haxx.se/ca/cacert.pem
+
+放到 程序文件目录
+
+curl 增加下面的配置
+
+   curl_setopt($ch,CURLOPT_SSL_VERIFYPEER,true); ;
+   curl_setopt($ch,CURLOPT_CAINFO,dirname(__FILE__).'/cacert.pem');
+
+大功告成
+
+（本人验证未通过。。。报错信息为：SSL certificate problem, verify that the CA cert is OK. Details: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed）
+
+
+
+###################################################################################
+最近用git下载一个开源项目的时候，出现了这样的错误信息：
+
+SSL certificate problem, verify that the CA cert is OK. Details: error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed while accessing https://github.com/... 
+
+出现这样的情况是因为git clone默认采用SSL认证的时候，本地找不到对应证书，所以可以通过关掉验证来解决这一问题，就是在git clone命令前面加上：
+env GIT_SSL_NO_VERIFY=true       
+
+所以完整的命令是这样：
+env GIT_SSL_NO_VERIFY=true git clone https://github.com/...
+
+
+
+
+###################################################################################
+我遇到的问题是远程的接口证书更新了。
+本地的缓存没有更新过来。
+试了许多办法，没有解决。
+最后，时间紧，在PHP代码上，对 curl 进行了操作绕过证书验证了。
+使用CURL请求HTTPS地址时报：error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+今天发现在使用亚马逊mws 的 SubmitFeed 接口做上传更新动作时发现程序返回报错：
+error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+查询后发现原来是亚马逊mws服务器的SSL安全证书更新了，需要我们这边来更新ssl判别证书，更新之后问题解决。
+在这边记录一下更新方式作为备录：
+1、下载新的ssl本地的判别证书：
+       wget http://curl.haxx.se/ca/cacert.pem
+2、更名为ca-bundle.crt放置到默认目录，替换旧的证书：
+   mv cacert.pem ca-bundle.crt
+   mv ca-bundle.crt /etc/pki/tls/certs/
+----------------
+另一种办法：
+openssl ca -config /etc/openssl.cnf -policy policy_anything -out newcert.pem -infiles newreq.pem -startdate [now] -enddate [previous enddate+365days]
+用正确的时间替换 [now]和[previous enddate+365days]。
+5 证书的更新
+当用户发送他旧的证书证书或要在原有私钥的基础上建新的证书，所以必须吊消旧的证书然后再签发新的证书。要找到证书，可以用户的DN（区别名）在 index.txt文件中查到序列号xx,用cert/<xx>.pem做为证书吊消的依据。你必须手动签发证书，因为开始时间和结束时间以 便确定新证书的有效性。
+-----------------
+参考：
+http://blog.hillghost.info/post/54088559447/curl-https-error-14090086-ssl
+http://wiki.ubuntu.org.cn/Openssl%E8%AF%81%E4%B9%A6%E7%AE%A1%E7%90%86
+
+
+###################################################################################
+  使用git通过https方式从github clone git repo源码时，报错如下：
+
+Cloning into 'git'...fatal: unable to access 'https://github.com/git/git.git/': SSL certificate problem, verify that the CA cert is OK. Details:error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+        开启curl verbose选项（用于调试）并重新执行git clone，详细报错信息：
+
+$ export GIT_CURL_VERBOSE=1$ git clone https://github.com/git/git.git   Cloning into 'git'...* Couldn't find host github.com in the .netrc file, using defaults* About to connect() to github.com port 443*   Trying 192.30.252.128... * connected* Connected to github.com (192.30.252.128) port 443* successfully set certificate verify locations:*   CAfile: /usr/share/ssl/certs/ca-bundle.crt  CApath: none* SSL certificate problem, verify that the CA cert is OK. Details:error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed* Closing connection #0fatal: unable to access 'https://github.com/git/git.git/': SSL certificate problem, verify that the CA cert is OK. Details:error:14090086:SSL routines:SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+        从错误提示可知，git通过curl访问https地址时，未能在本机未找到ca证书，从而导致ssl certificate verify failed。
+
+        解决方法：
+        Setp1：从curl官网下载cacert.pem文件（下载链接参见这里，关于curl的Server SSL Certificates细节参见这里，其中提到，从curl 7.18.0开始，编译安装curl时默认安装ca证书，而我机器的curl version=7.12.1，curl --version可查看）：
+      ~$ mkdir ~/tools/https-ca      ~$ cd ~/tools/https-ca      ~$ curl http://curl.haxx.se/ca/cacert.pem -o cacert.pem
+        Step2：终端执行下面的命令，以便为git配置ca认证信息：    
+      ~$ git config --global http.sslCAInfo /home/slvher/tools/https-ca/cacert.pem
+        可打开~/.gitconfig确认cainfo配置成功写入git配置文件
+        完成以上两步后，执行git clone https://github.com/git/git.git成功，问题解决。
+
+【参考资料】
+1. StackOverflow: SSL certificate rejected trying to access GitHub over HTTPS behind firewall
+2. cURL: Details on Server SSL Certificates
+
+================== EOF =====================
+
+
+
+
